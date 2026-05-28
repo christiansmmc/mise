@@ -1,0 +1,10 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+src-tauri/target/
+
+# misc
+*.log
+.DS_Store
