@@ -14,7 +14,7 @@ You write down what's on your mind. You do one thing. Then the next. mise does n
 
 No AI. No accounts. No cloud. No streaks. Just categories, tasks, and a priority you set yourself.
 
-> *"uma coisa de cada vez." — one thing at a time.*
+> *"one thing at a time."*
 
 Tauri 2 + React. Linen (dark) / linen (light). Sage accent. Local-first. English + Portuguese.
 
@@ -127,16 +127,16 @@ Example:
 ```json
 {
   "categories": [
-    { "id": "pessoal", "label": "pessoal" }
+    { "id": "personal", "label": "personal" }
   ],
   "tasks": [
     {
       "id": "01HXYZ...",
-      "title": "renovar passaporte",
+      "title": "renew passport",
       "prio": "alta",
       "done": false,
-      "notes": "agendar atendimento na PF.",
-      "category": "pessoal",
+      "notes": "book an appointment at the federal police office.",
+      "category": "personal",
       "created": "2026-05-28T14:12:09.221Z"
     }
   ]
