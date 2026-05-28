@@ -1,6 +1,6 @@
 [package]
 name = "mise"
-version = "0.1.0"
+version = "0.2.0"
 description = "mise · tauri app · estilo galley"
 authors = ["you"]
 edition = "2021"

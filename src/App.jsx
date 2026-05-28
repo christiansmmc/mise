@@ -300,6 +300,23 @@ function App() {
   useEffect(() => { localStorage.setItem('mise:theme', theme); }, [theme]);
   useEffect(() => { try { localStorage.setItem('mise:lang', lang); } catch {} }, [lang]);
 
+  // reload db when the window regains focus, so external edits (e.g. the
+  // mise-todo CLI) show up and don't get clobbered by a stale in-memory save
+  useEffect(() => {
+    const reload = async () => {
+      const fresh = await loadDb();
+      setDb(fresh);
+      setActiveCat(prev => fresh.categories.find(c => c.id === prev) ? prev : (fresh.categories[0]?.id || ''));
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') reload(); };
+    window.addEventListener('focus', reload);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', reload);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
   if (!db) return null;
 
   // ─ mutations
