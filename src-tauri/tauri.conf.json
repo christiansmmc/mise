@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "mise",
-  "version": "0.3.0",
+  "mainBinaryName": "mise-todo",
+  "version": "0.4.0",
   "identifier": "dev.local.mise",
   "build": {
     "beforeDevCommand": "npm run dev",
