@@ -5,7 +5,7 @@
 <h1 align="center">mise</h1>
 
 <p align="center">
-  A minimal Linux desktop task manager.
+  A minimal desktop task manager.
 </p>
 
 ---
