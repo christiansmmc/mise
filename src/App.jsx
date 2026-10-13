@@ -1,7 +1,10 @@
-// mise · tauri app · single-file React frontend.
+// mise · tauri app · React frontend.
 // Falls back to localStorage when not running inside Tauri.
 
-import { useState, useEffect, useRef, createContext, useContext } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { I18N, detectLang, LangCtx, useI18n, formatCreated, todayLabel } from './i18n.js'
+import { newId, slugify, autoGrow } from './utils.js'
+import Board, { defaultColumns } from './Board.jsx'
 
 // ─── persistence ────────────────────────────────────────────────────────
 const tauri = typeof window !== 'undefined' ? window.__TAURI__?.core : null;
@@ -14,14 +17,22 @@ function defaultDb() {
   };
 }
 
+// a board needs at least two columns (first = to do, last = done)
+function migrate(db) {
+  db.categories.forEach(c => {
+    if (c.kind === 'board' && !(c.columns?.length >= 2)) c.columns = defaultColumns(detectLang());
+  });
+  return db;
+}
+
 async function loadDb() {
   if (tauri) {
-    try { return await tauri.invoke('load_db'); }
+    try { return migrate(await tauri.invoke('load_db')); }
     catch (e) { console.error('load_db failed:', e); }
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return migrate(JSON.parse(raw));
   } catch {}
   return defaultDb();
 }
@@ -42,191 +53,7 @@ async function getDbPath(lang) {
   return lang === 'en' ? 'localStorage (browser)' : 'localStorage (navegador)';
 }
 
-// ─── i18n ─────────────────────────────────────────────────────────────────
-const I18N = {
-  pt: {
-    count_items: (n) => `${n} ${n === 1 ? 'item' : 'itens'}`,
-    t_settings: 'configurações',
-    t_minimize: 'minimizar',
-    t_maximize: 'maximizar',
-    t_close_win: 'fechar',
-    new_category: 'nova categoria',
-    new_category_ph: 'nova categoria…',
-    empty_msg: 'nada por aqui ainda — uma página em branco.',
-    empty_sub: 'comece adicionando o que estiver na sua cabeça.',
-    new_task: 'nova tarefa',
-    no_cats_msg: 'nenhuma categoria ainda.',
-    no_cats_sub: 'crie uma categoria para começar a organizar suas tarefas.',
-    sort: 'ordenar:',
-    sort_prio: 'prioridade',
-    sort_created: 'criação',
-    group_new: 'nova',
-    task_ph: 'o que precisa ser feito?',
-    hint_save: '↵ salvar · esc cancelar',
-    prio_alta: 'alta',
-    prio_media: 'média',
-    prio_baixa: 'baixa',
-    grp_none: 'sem prioridade',
-    prio_none_btn: 'nenhuma',
-    todo_header: 'a fazer',
-    done_header: 'feitas',
-    close: 'fechar',
-    delete: 'excluir',
-    priority: 'prioridade',
-    notes_ph: 'descreva contexto, links, sub-passos…',
-    show_desc: 'mostrar descrição',
-    hide_desc: 'ocultar descrição',
-    synced: 'sincronizado',
-    creed: 'uma coisa de cada vez.',
-    cancel: 'cancelar',
-    confirm: 'confirmar',
-    confirm_del_task: (title) => `excluir "${title}"?`,
-    confirm_del_cat: (label, n) => `excluir categoria "${label}" e suas ${n} ${n === 1 ? 'tarefa' : 'tarefas'}?`,
-    sec_categories: 'categorias',
-    sec_appearance: 'aparência',
-    sec_language: 'idioma',
-    sec_storage: 'armazenamento',
-    sec_about: 'sobre',
-    your_categories: 'suas categorias',
-    tasks_count: (n) => `${n} ${n === 1 ? 'tarefa' : 'tarefas'}`,
-    create: 'criar',
-    theme: 'tema',
-    palette: 'paleta',
-    theme_hint: 'o tema fica salvo localmente. ainda não tem opção "auto" via sistema.',
-    language: 'idioma',
-    lang_hint: 'o idioma fica salvo localmente. o padrão segue o sistema.',
-    data_file: 'arquivo de dados',
-    path: 'caminho',
-    storage_hint: 'tudo fica num único JSON local. nada vai pra nuvem.',
-    about: 'sobre',
-    about_l1: 'mise — um app simples de tarefas em Tauri 2.',
-    about_l2: 'paleta linen · accent sage · estilo galley.',
-  },
-  en: {
-    count_items: (n) => `${n} item${n === 1 ? '' : 's'}`,
-    t_settings: 'settings',
-    t_minimize: 'minimize',
-    t_maximize: 'maximize',
-    t_close_win: 'close',
-    new_category: 'new category',
-    new_category_ph: 'new category…',
-    empty_msg: 'nothing here yet — a blank page.',
-    empty_sub: 'start by adding whatever is on your mind.',
-    new_task: 'new task',
-    no_cats_msg: 'no categories yet.',
-    no_cats_sub: 'create a category to start organizing your tasks.',
-    sort: 'sort:',
-    sort_prio: 'priority',
-    sort_created: 'created',
-    group_new: 'new',
-    task_ph: 'what needs doing?',
-    hint_save: '↵ save · esc cancel',
-    prio_alta: 'high',
-    prio_media: 'medium',
-    prio_baixa: 'low',
-    grp_none: 'no priority',
-    prio_none_btn: 'none',
-    todo_header: 'to do',
-    done_header: 'done',
-    close: 'close',
-    delete: 'delete',
-    priority: 'priority',
-    notes_ph: 'add context, links, sub-steps…',
-    show_desc: 'show description',
-    hide_desc: 'hide description',
-    synced: 'synced',
-    creed: 'one thing at a time.',
-    cancel: 'cancel',
-    confirm: 'confirm',
-    confirm_del_task: (title) => `delete "${title}"?`,
-    confirm_del_cat: (label, n) => `delete category "${label}" and its ${n} task${n === 1 ? '' : 's'}?`,
-    sec_categories: 'categories',
-    sec_appearance: 'appearance',
-    sec_language: 'language',
-    sec_storage: 'storage',
-    sec_about: 'about',
-    your_categories: 'your categories',
-    tasks_count: (n) => `${n} task${n === 1 ? '' : 's'}`,
-    create: 'create',
-    theme: 'theme',
-    palette: 'palette',
-    theme_hint: 'the theme is saved locally. there is no "auto" (system) option yet.',
-    language: 'language',
-    lang_hint: 'the language is saved locally. the default follows your system.',
-    data_file: 'data file',
-    path: 'path',
-    storage_hint: 'everything lives in a single local JSON. nothing goes to the cloud.',
-    about: 'about',
-    about_l1: 'mise — a simple task app in Tauri 2.',
-    about_l2: 'linen palette · sage accent · galley style.',
-  },
-};
-
-function detectLang() {
-  try {
-    const saved = localStorage.getItem('mise:lang');
-    if (saved === 'pt' || saved === 'en') return saved;
-    const sys = (navigator.language || 'en').toLowerCase();
-    return sys.startsWith('pt') ? 'pt' : 'en';
-  } catch { return 'en'; }
-}
-
-const LangCtx = createContext({ lang: 'pt', t: (k) => k, setLang: () => {} });
-const useI18n = () => useContext(LangCtx);
-
 // ─── utils ──────────────────────────────────────────────────────────────
-function newId() {
-  return (typeof crypto !== 'undefined' && crypto.randomUUID)
-    ? crypto.randomUUID()
-    : `t_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-const MONTHS = {
-  pt: ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'],
-  en: ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'],
-};
-const DOWS = {
-  pt: ['dom','seg','ter','qua','qui','sex','sáb'],
-  en: ['sun','mon','tue','wed','thu','fri','sat'],
-};
-const REL = {
-  pt: { now: 'agora', min: (n) => `há ${n} min`, hr: (n) => `há ${n}h`, day: (n) => `há ${n} ${n === 1 ? 'dia' : 'dias'}` },
-  en: { now: 'now', min: (n) => `${n} min ago`, hr: (n) => `${n}h ago`, day: (n) => `${n} day${n === 1 ? '' : 's'} ago` },
-};
-
-function formatCreated(iso, lang = 'pt') {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d)) return '';
-  const r = REL[lang] || REL.pt;
-  const diff = (Date.now() - d.getTime()) / 1000;
-  if (diff < 60) return r.now;
-  if (diff < 3600) return r.min(Math.floor(diff / 60));
-  if (diff < 86400) return r.hr(Math.floor(diff / 3600));
-  if (diff < 86400 * 7) return r.day(Math.floor(diff / 86400));
-  return `${d.getDate()}.${(MONTHS[lang] || MONTHS.pt)[d.getMonth()]}`;
-}
-
-function todayLabel(lang = 'pt') {
-  const d = new Date();
-  const mon = (MONTHS[lang] || MONTHS.pt)[d.getMonth()];
-  const dow = (DOWS[lang] || DOWS.pt)[d.getDay()];
-  return `${dow} · ${d.getDate()}.${mon}.${String(d.getFullYear()).slice(2)}`;
-}
-
-function slugify(s) {
-  return s.toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '');
-}
-
-function autoGrow(el) {
-  if (!el) return;
-  el.style.height = 'auto';
-  el.style.height = `${el.scrollHeight}px`;
-}
-
 function groupByPrio(list) {
   return {
     alta:  list.filter(t => t.prio === 'alta'),
@@ -246,6 +73,10 @@ const Cog = () => (
 const Dash = () => <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M2 6h8" /></svg>;
 const Square = () => <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="2" y="2" width="8" height="8" /></svg>;
 const Cross = () => <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M3 3l6 6M9 3l-6 6" /></svg>;
+// tiny type glyphs: list = 3 rows, board = 3 columns
+const KindGlyph = ({ kind }) => (
+  <span className={`kg kg-${kind}`}><i></i><i></i><i></i></span>
+);
 
 // ─── App ────────────────────────────────────────────────────────────────
 function App() {
@@ -264,8 +95,7 @@ function App() {
   const [dbPath, setDbPath] = useState('');
   const [confirmState, setConfirmState] = useState(null);
   const askConfirm = (opts) => setConfirmState(opts);
-  const [addingCat, setAddingCat] = useState(false);
-  const [newCatLabel, setNewCatLabel] = useState('');
+  const [newCatOpen, setNewCatOpen] = useState(false);
 
   const saveTimer = useRef(null);
   const firstRender = useRef(true);
@@ -329,7 +159,7 @@ function App() {
     const t = d.tasks.find(x => x.id === id);
     if (t) Object.assign(t, patch);
   });
-  const addTask = (title, prio = 'none') => {
+  const addTask = (title, prio = 'none', extra = {}) => {
     if (!activeCat) return;
     const t = {
       id: newId(),
@@ -339,6 +169,7 @@ function App() {
       notes: '',
       category: activeCat,
       created: new Date().toISOString(),
+      ...extra,
     };
     upd(d => { d.tasks.unshift(t); });
   };
@@ -347,13 +178,34 @@ function App() {
     const t = d.tasks.find(x => x.id === id);
     if (t) t.done = !t.done;
   });
-  const addCategory = (label) => {
+  // board: moving into the last column marks done, so list view stays consistent
+  const setStatus = (id, colId) => upd(d => {
+    const t = d.tasks.find(x => x.id === id);
+    const c = t && d.categories.find(x => x.id === t.category);
+    if (!c?.columns) return;
+    t.status = colId;
+    t.done = c.columns[c.columns.length - 1].id === colId;
+  });
+  const updCategory = (id, mut) => upd(d => {
+    const c = d.categories.find(x => x.id === id);
+    if (c) mut(c);
+  });
+  const addCategory = (label, kind = 'list') => {
     const id = slugify(label);
     if (!id) return;
     if (db.categories.find(c => c.id === id)) { setActiveCat(id); return; }
-    upd(d => { d.categories.push({ id, label }); });
+    upd(d => {
+      d.categories.push(kind === 'board'
+        ? { id, label, kind, columns: defaultColumns(lang) }
+        : { id, label, kind });
+    });
     setActiveCat(id);
   };
+  // columns are kept when switching back to list, so a round trip loses nothing
+  const setKind = (id, kind) => updCategory(id, c => {
+    c.kind = kind;
+    if (kind === 'board' && !(c.columns?.length >= 2)) c.columns = defaultColumns(lang);
+  });
   const deleteCategory = (id) => {
     upd(d => {
       d.categories = d.categories.filter(c => c.id !== id);
@@ -372,13 +224,6 @@ function App() {
     setCreating(false);
   };
 
-  const submitNewCat = () => {
-    const v = newCatLabel.trim();
-    if (v) addCategory(v);
-    setNewCatLabel('');
-    setAddingCat(false);
-  };
-
   // ─ derived
   const tasksHere = db.tasks.filter(t => t.category === activeCat);
   const active = tasksHere.filter(t => !t.done);
@@ -393,7 +238,9 @@ function App() {
     counts[c.id] = db.tasks.filter(t => t.category === c.id && !t.done).length;
   });
 
-  const catLabel = db.categories.find(c => c.id === activeCat)?.label || '';
+  const cat = db.categories.find(c => c.id === activeCat);
+  const catLabel = cat?.label || '';
+  const isBoard = cat?.kind === 'board';
   const noCats = db.categories.length === 0;
 
   return (
@@ -423,7 +270,7 @@ function App() {
 
       {/* main */}
       <div className="lb-wrap">
-        <div className="lb-col">
+        <div className={`lb-col ${isBoard ? 'wide' : ''}`}>
           <div className="lb-head">
             <h1>{catLabel || 'mise'}</h1>
             <span className="date">{todayLabel(lang)}</span>
@@ -433,45 +280,29 @@ function App() {
             <div className="lb-empty">
               <div className="msg">{t('no_cats_msg')}</div>
               <div className="sub">{t('no_cats_sub')}</div>
-              <input
-                className="cat-add-in solo"
-                autoFocus
-                value={newCatLabel}
-                placeholder={t('new_category_ph')}
-                onChange={(e) => setNewCatLabel(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') submitNewCat();
-                  else if (e.key === 'Escape') { setNewCatLabel(''); }
-                }}
-              />
+              <NewCategory solo onCreate={addCategory} />
             </div>
           ) : (
             <>
               <div className="lb-tabs">
                 {db.categories.map(c => (
                   <span key={c.id} className={`t ${c.id === activeCat ? 'on' : ''}`} onClick={() => { setActiveCat(c.id); setExpandedId(null); setCreating(false); }}>
+                    {c.kind === 'board' && <KindGlyph kind="board" />}
                     {c.label} <span className="ct">{counts[c.id]}</span>
                   </span>
                 ))}
-                {addingCat ? (
-                  <input
-                    className="cat-add-in"
-                    autoFocus
-                    value={newCatLabel}
-                    placeholder={t('new_category_ph')}
-                    onChange={(e) => setNewCatLabel(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') submitNewCat();
-                      else if (e.key === 'Escape') { setNewCatLabel(''); setAddingCat(false); }
-                    }}
-                    onBlur={submitNewCat}
-                  />
-                ) : (
-                  <span className="add" title={t('new_category')} onClick={() => setAddingCat(true)}>+</span>
+                <span className={`add ${newCatOpen ? 'on' : ''}`} title={t('new_category')} onClick={() => setNewCatOpen(o => !o)}>+</span>
+                {newCatOpen && (
+                  <NewCategory
+                    onCreate={(label, kind) => { addCategory(label, kind); setNewCatOpen(false); }}
+                    onCancel={() => setNewCatOpen(false)} />
                 )}
               </div>
 
-              {tasksHere.length === 0 && !creating ? (
+              {isBoard ? (
+                <Board key={cat.id} cat={cat} tasks={tasksHere} addTask={addTask} setStatus={setStatus}
+                  updTask={updTask} deleteTask={deleteTask} updCategory={updCategory} askConfirm={askConfirm} />
+              ) : tasksHere.length === 0 && !creating ? (
                 <div className="lb-empty">
                   <div className="msg">{t('empty_msg')}</div>
                   <div className="sub">{t('empty_sub')}</div>
@@ -569,6 +400,7 @@ function App() {
           setTheme={setTheme}
           addCategory={addCategory}
           deleteCategory={deleteCategory}
+          setKind={setKind}
           close={() => setSettingsOpen(false)}
           askConfirm={askConfirm}
         />
@@ -579,6 +411,54 @@ function App() {
       )}
     </div>
     </LangCtx.Provider>
+  );
+}
+
+// ─── NewCategory ──────────────────────────────────────────────────────────
+// name + list/board picker. as a popover (under the "+" tab) it closes on
+// click-away / esc; `solo` is the inline first-run version with nothing to cancel.
+function NewCategory({ onCreate, onCancel, solo = false }) {
+  const { t } = useI18n();
+  const [label, setLabel] = useState('');
+  const [kind, setKind] = useState('list');
+  const ref = useRef(null);
+  useEffect(() => {
+    if (solo) return;
+    const away = (e) => {
+      // the "+" toggles the popover itself
+      if (ref.current && !ref.current.contains(e.target) && !e.target.closest('.lb-tabs .add')) onCancel();
+    };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, []);
+  const submit = () => {
+    if (!label.trim()) return;
+    onCreate(label.trim(), kind);
+    if (solo) setLabel('');
+  };
+  return (
+    <div className={`nc-pop ${solo ? 'solo' : ''}`} ref={ref}>
+      <input autoFocus value={label} placeholder={t('new_category_ph')}
+        onChange={e => setLabel(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') submit();
+          else if (e.key === 'Escape') { if (solo) setLabel(''); else onCancel(); }
+          else if (e.key === 'Tab') { e.preventDefault(); setKind(k => k === 'list' ? 'board' : 'list'); }
+        }} />
+      <div className="nc-types">
+        {['list', 'board'].map(k => (
+          <button key={k} className={kind === k ? 'on' : ''} onMouseDown={e => e.preventDefault()} onClick={() => setKind(k)}>
+            <KindGlyph kind={k} />
+            <span className="nm">{t('kind_' + k)}</span>
+            <span className="ds">{t(`kind_${k}_desc`)}</span>
+          </button>
+        ))}
+      </div>
+      <div className="nc-foot">
+        <span>{t(solo ? 'nc_hint_solo' : 'nc_hint')}</span>
+        <span className={`go ${label.trim() ? '' : 'off'}`} onClick={submit}>{t('create')}</span>
+      </div>
+    </div>
   );
 }
 
@@ -741,7 +621,7 @@ function TaskRow({ task, expanded, setExpandedId, toggleDone, updTask, deleteTas
 }
 
 // ─── SettingsModal ──────────────────────────────────────────────────────
-function SettingsModal({ db, dbPath, theme, setTheme, addCategory, deleteCategory, close, askConfirm }) {
+function SettingsModal({ db, dbPath, theme, setTheme, addCategory, deleteCategory, setKind, close, askConfirm }) {
   const { t, lang, setLang } = useI18n();
   const [newCat, setNewCat] = useState('');
   const [section, setSection] = useState('categories');
@@ -775,8 +655,12 @@ function SettingsModal({ db, dbPath, theme, setTheme, addCategory, deleteCategor
                   const count = db.tasks.filter(t => t.category === c.id).length;
                   return (
                     <div key={c.id} className="row">
-                      <span className="ic">◆</span>
+                      <span className="ic"><KindGlyph kind={c.kind === 'board' ? 'board' : 'list'} /></span>
                       <span className="nm">{c.label}</span>
+                      <div className="seg mini">
+                        <button className={c.kind !== 'board' ? 'on' : ''} onClick={() => setKind(c.id, 'list')}>{t('kind_list')}</button>
+                        <button className={c.kind === 'board' ? 'on' : ''} onClick={() => setKind(c.id, 'board')}>{t('kind_board')}</button>
+                      </div>
                       <span className="meta">{t('tasks_count', count)}</span>
                       <span className="act danger" onClick={() => {
                         askConfirm({
