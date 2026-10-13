@@ -84,7 +84,7 @@ After install, launch from your desktop menu (the app appears as **mise**).
 
 ![First run — no categories yet](screenshots/05-first-run.png)
 
-mise starts empty. Create your first category, then start adding tasks under it. That's the whole onboarding.
+mise starts empty. Create your first category — a list or a board — then start adding tasks under it. That's the whole onboarding.
 
 ## Building from source
 
@@ -129,7 +129,15 @@ Example:
 ```json
 {
   "categories": [
-    { "id": "personal", "label": "personal" }
+    { "id": "personal", "label": "personal", "kind": "list" },
+    {
+      "id": "side-project", "label": "side project", "kind": "board",
+      "columns": [
+        { "id": "todo", "label": "to do" },
+        { "id": "doing", "label": "doing" },
+        { "id": "done", "label": "done" }
+      ]
+    }
   ],
   "tasks": [
     {
@@ -140,17 +148,32 @@ Example:
       "notes": "book an appointment at the federal police office.",
       "category": "personal",
       "created": "2026-05-28T14:12:09.221Z"
+    },
+    {
+      "id": "01HXZA...",
+      "title": "sketch the landing page",
+      "prio": "none",
+      "done": false,
+      "notes": "",
+      "category": "side-project",
+      "created": "2026-10-13T19:11:08.287Z",
+      "status": "doing"
     }
   ]
 }
 ```
+
+`kind`, `columns` and `status` are optional — files written before boards existed load as plain lists. On a board, `done` stays the source of truth: a task is in the last column exactly when it's done, and a `status` that disagrees is ignored.
 
 ## Project layout
 
 ```
 index.html            Vite entry
 src/                  React frontend
-  App.jsx               whole UI (titlebar, list, task rows, settings, i18n)
+  App.jsx               app shell (titlebar, tabs, list, task rows, settings)
+  Board.jsx             board view (columns, cards, drag & drop, card sheet)
+  i18n.js               en / pt-BR strings + date formatting
+  utils.js              small shared helpers
   main.jsx              mount
   styles.css            galley-style tokens + components
 
