@@ -12,12 +12,26 @@ pub struct Task {
     pub notes: String,
     pub category: String,
     pub created: String, // ISO8601
+    /// board column id; only meaningful when the category is a board
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Column {
+    pub id: String,
+    pub label: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Category {
     pub id: String,
     pub label: String,
+    /// "list" | "board"; absent on files written before boards existed
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<Column>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -56,4 +70,47 @@ pub fn save(db: &Db) -> std::io::Result<()> {
     fs::write(&tmp, raw)?;
     fs::rename(&tmp, &p)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{json, Value};
+
+    fn roundtrip(input: Value) -> Value {
+        let db: Db = serde_json::from_value(input).expect("deserialize");
+        serde_json::to_value(&db).expect("serialize")
+    }
+
+    #[test]
+    fn board_fields_survive_roundtrip() {
+        let out = roundtrip(json!({
+            "categories": [{
+                "id": "proj", "label": "Proj", "kind": "board",
+                "columns": [{ "id": "todo", "label": "to do" }, { "id": "done", "label": "done" }]
+            }],
+            "tasks": [{
+                "id": "1", "title": "a", "prio": "none", "done": false, "notes": "",
+                "category": "proj", "created": "2026-10-13T00:00:00.000Z", "status": "todo"
+            }]
+        }));
+        let cat = &out["categories"][0];
+        assert_eq!(cat["kind"], "board");
+        assert_eq!(cat["columns"][1]["id"], "done");
+        assert_eq!(cat["columns"][1]["label"], "done");
+        assert_eq!(out["tasks"][0]["status"], "todo");
+    }
+
+    #[test]
+    fn legacy_db_stays_byte_compatible() {
+        let out = roundtrip(json!({
+            "categories": [{ "id": "work", "label": "Work" }],
+            "tasks": [{
+                "id": "1", "title": "a", "prio": "none", "done": false,
+                "category": "work", "created": "2026-10-13T00:00:00.000Z"
+            }]
+        }));
+        assert_eq!(out["categories"][0], json!({ "id": "work", "label": "Work" }));
+        assert!(out["tasks"][0].get("status").is_none());
+    }
 }

@@ -37,6 +37,8 @@ macOS / Windows are not tested. Tauri can target them; PRs welcome.
 
 **Expand to edit.** Click a task to open it inline: edit the title (wraps, never truncates), set priority, write a description. Click outside to close. **Show description** reveals notes without opening the task.
 
+**Lists or boards.** The **+** tab asks what kind of category you want: a *list* (the checklist above) or a *board* — cards in status columns (to do / doing / done), dragged between them. Add, rename (double-click) or remove columns. Switch a category between the two in Settings anytime; a card in the last column is simply a done task in list view.
+
 **Local-first.** Everything lives in one flat JSON file. Nothing leaves your machine.
 
 **English + Portuguese (BR).** Toggle in Settings → Language. Default follows your system locale. Dates and relative times ("2h ago" / "há 2h") localize too.
